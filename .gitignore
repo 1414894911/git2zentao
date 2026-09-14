@@ -1,0 +1,13 @@
+# 个人配置与凭据（含账号、token、内网地址、本地路径）——严禁提交
+config.json
+config.*.json
+!config.example.json
+
+# 本地工作记录（提交明细、任务树、工时台账）——严禁提交
+out/
+portfolio.json
+_user_meta.json
+
+# 依赖与日志
+node_modules/
+*.log

@@ -1,0 +1,156 @@
+{
+  "//": "复制本文件为 config.json 后填写。config.json 含凭据与个人路径，勿提交到代码仓库。",
+  "authors": {
+    "//accounts": "git/平台的登录名或提交作者名，多个都列出",
+    "accounts": [
+      "zhangsan"
+    ],
+    "//displayNames": "中文姓名（提交里的作者名可能显示为中文）",
+    "displayNames": [
+      "张三"
+    ],
+    "emails": []
+  },
+  "repos": [
+    {
+      "//note": "本地仓库：path 填本机克隆路径；domain 用于聚类的业务域提示（可留空）",
+      "name": "my-web",
+      "source": "local",
+      "path": "D:/workspace/my-web",
+      "domain": "前端可视化"
+    },
+    {
+      "name": "my-api",
+      "source": "local",
+      "path": "D:/workspace/my-api",
+      "domain": "后端服务"
+    },
+    {
+      "//note": "远程仓库：本机未克隆时用平台 API 拉取，owner/repo 按平台填写",
+      "name": "gitea-only-repo",
+      "source": "gitea",
+      "owner": "team",
+      "repo": "gitea-only-repo",
+      "domain": "其他"
+    }
+  ],
+  "platforms": {
+    "//": "baseUrl 只填主机根，API 前缀由脚本按平台自动拼接（gitea=/api/v1、github=根、gitee=/api/v5）；token 只写本机 config.json",
+    "gitea": {
+      "baseUrl": "http://git.example.com:3000",
+      "token": ""
+    },
+    "github": {
+      "baseUrl": "https://api.github.com",
+      "token": ""
+    },
+    "gitee": {
+      "baseUrl": "https://gitee.com",
+      "token": ""
+    }
+  },
+  "zentao": {
+    "baseUrl": "http://zentao.example.com",
+    "account": "",
+    "password": "",
+    "//projectName": "项目名称，用于在项目列表里检索；若已固化 projectId 则可留空",
+    "projectName": "示例项目名称",
+    "executionName": "第1阶段开发建设",
+    "//projectId": "★推荐：用 scripts/zentao_locate.js 人工定位一次后自动写入，之后不再依赖列表检索",
+    "projectId": "",
+    "executionId": "",
+    "cdpPort": 9222,
+    "assignedTo": "zhangsan"
+  },
+  "locate": {
+    "//": "目标定位策略：manualFirst=true 时先请用户在浏览器里手动进入项目/执行，脚本再自动识别并写回编号",
+    "manualFirst": true,
+    "timeoutSec": 300
+  },
+  "workload": {
+    "//monthTargets": "每月目标工时（按项目实际要求填写，如客户/监理要求每月不低于 N 小时）",
+    "monthTargets": {
+      "2026-07": 180,
+      "2026-08": 180
+    },
+    "minTaskHours": 1,
+    "maxTaskHours": 16,
+    "maxDailyHours": 8,
+    "warnDailyHours": 6,
+    "minLeavesPerMonth": 6
+  },
+  "portfolio": {
+    "//monthlyCap": "全项目月度工时合计上限：各项目单独达标不代表真实投入合理，收尾时强制校验",
+    "monthlyCap": 200
+  },
+  "naming": {
+    "monthTask": "{displayName}{monthCn}月份任务"
+  },
+  "collect": {
+    "excludeMerge": true,
+    "excludePatterns": [],
+    "includePatterns": [],
+    "//moduleAliases": "把提交里的英文 scope / 路径片段映射为你的业务模块名；脚本另内置一批常见映射",
+    "moduleAliases": {
+      "map": "地图与可视化",
+      "layer": "地图与可视化",
+      "monitor": "安全监测",
+      "device": "设备管理",
+      "dashboard": "驾驶舱",
+      "hooks": "基础框架与工程化",
+      "config": "基础框架与工程化"
+    }
+  },
+  "plan": {
+    "granularity": "function",
+    "//granularity": "function=同模块内相似提交归并为一个功能点；module=每个模块一个功能点；commit=一提交一任务",
+    "//similarityThreshold": "功能点归并的相似度阈值（0~1），越大越不合并，建议 0.30~0.45",
+    "similarityThreshold": 0.35,
+    "//maxLeavesPerModule": "单个模块最多拆出的功能点数，超出时合并最相似的簇",
+    "maxLeavesPerModule": 8,
+    "minCommitsPerLeaf": 1,
+    "mergeSameModule": true
+  },
+  "estimate": {
+    "//mode": "smart=按标题语义+难度+事项数+提交数推算（推荐，见 lib/estimate.js）；legacy=按提交条数粗分档",
+    "mode": "smart",
+    "levels": {
+      "high": 8,
+      "mid": 6,
+      "base": 4
+    },
+    "highSignals": [
+      "新增模块",
+      "重构",
+      "异步",
+      "实时",
+      "接口兼容"
+    ],
+    "midSignals": [
+      "性能优化",
+      "算法",
+      "联调",
+      "适配"
+    ],
+    "baseSignals": [
+      "修复",
+      "命名",
+      "注释",
+      "文档",
+      "格式",
+      "移除"
+    ],
+    "//tierRules": "★按你的技术栈定制 T1~T7 判定关键词（内置默认偏向 WebGIS/可视化开发）。keywords 追加到内置词表；mode=replace 时整档只用自己的词。示例见 SKILL.md §4.1.1",
+    "tierRules": [
+      { "tier": "T6", "keywords": ["微服务", "分库分表", "中间件"], "why": "后端分布式开发" }
+    ]
+  },
+  "close": {
+    "startTime": "09:00",
+    "finishTime": "18:00",
+    "timeStrategy": "by-commit-date",
+    "fallbackMonthEnd": true,
+    "skipFinished": true
+  },
+  "outDir": "out"
+}

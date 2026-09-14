@@ -1,0 +1,26 @@
+{
+  "name": "git2zentao",
+  "version": "1.0.0",
+  "description": "Git 提交 → 需求汇总 → 禅道任务 → 任务闭环 的工时汇报自动化技能包（AI Agent Skill）",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/1414894911/git2zentao.git"
+  },
+  "keywords": [
+    "git",
+    "zentao",
+    "timesheet",
+    "worklog",
+    "automation",
+    "playwright",
+    "ai-skill"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}
