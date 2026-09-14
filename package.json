@@ -1,6 +1,6 @@
 {
   "name": "git2zentao",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Git 提交 → 需求汇总 → 禅道任务 → 任务闭环 的工时汇报自动化技能包（AI Agent Skill）",
   "license": "MIT",
   "private": true,

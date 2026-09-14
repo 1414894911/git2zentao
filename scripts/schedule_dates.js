@@ -95,6 +95,11 @@ if (has('--apply')) {
   }
   writeJson(path.join(OUT, 'task-tree-scheduled.json'), tree);
   log('已应用', '铺排结果写入 out/task-tree-scheduled.json（原 task-tree.json 保持不变）');
+  console.log('');
+  console.log('下一步：让建单/闭环使用铺排后的任务树（二选一）');
+  console.log('  a) 替换为当前任务树：copy out/task-tree-scheduled.json out/task-tree.json    （之后命令无需改动，推荐）');
+  console.log('  b) 显式指定：node scripts/zentao_sync.js --tree out/task-tree-scheduled.json --sample');
+  console.log('     注意：建单会把任务编号回填到「你指定的那棵树」，后续 close 也要用同一个 --tree。');
 }
 
 console.log(L.slice(0, 14).join('\n'));

@@ -1,7 +1,7 @@
 ---
 name: git2zentao
 description: 全流程自动化技能包：代码提交 → 需求汇总 → 禅道任务创建 → 任务闭环。支持 Gitea/GitHub/Gitee 与禅道（Zin/经典版）多平台配置，自动探测本地环境（node/浏览器/playwright-core/CDP/git），按本人账号与时间范围读取提交、聚类汇总为需求功能，并支持导入企业微信/钉钉/飞书等办公平台 AI 生成的月度工作总结（需求评审、接口/文档对接、联调支持等非代码工作），在禅道项目中创建「月份父任务 → 模块子任务 → 功能点叶子任务」三层结构并按难度设定预估工时，最后按提交日期推进并完成任务形成闭环。难度等级（T1~T7）信号默认面向 WebGIS/可视化开发，可通过 config.estimate.tierRules 按自己的技术栈定制。任务描述同时面向领导（交付成果与价值）与同事/审计（来源提交与工时依据）生成，并支持存量任务复用、补写、重排与全项目月度工时总量校验。触发词：提交转禅道、代码提交生成任务、Git 提交汇总禅道、禅道任务闭环、工时汇报、补工时、工时上账、工作日志、周报月报汇总、办公记录导入、工作记录导入、月度工作总结、禅道建单、commit to zentao、git2zentao、工时任务自动创建。
-version: 1.2.0
+version: 1.2.1
 agent_created: true
 ---
 
@@ -283,8 +283,9 @@ T1~T7 的**档位与工时阶梯是通用的**，但每档的**判定关键词�
 
 ```bash
 node scripts/portfolio.js --record    # 把本项目月度工时写入台账（默认 ~/.workbuddy/skills/git2zentao/portfolio.json）
-node scripts/portfolio.js --check     # 汇总所有项目，校验月度合计是否超上限
+node scripts/portfolio.js --check     # 汇总所有项目，校验月度合计是否超上限（不带参数即执行校验）
 node scripts/portfolio.js --list      # 查看台账
+node scripts/portfolio.js --cap 180   # 临时改上限（也可在 config.portfolio.monthlyCap 固化）
 ```
 
 - 上限 `config.portfolio.monthlyCap`（默认 **200h/月**）。参照：个人月度自然上限约 **176h ＝ 22 个工作日 × 8h**；长期加班口径下，诚实的全项目合计也很少超过 200h。
@@ -348,6 +349,11 @@ node scripts/schedule_dates.js --apply    # 另存 out/task-tree-scheduled.json
 node scripts/schedule_dates.js --max-daily 6 --today 2026-09-14
 ```
 
+> ⚠️ **铺排结果要显式交给建单使用**：`zentao_sync.js` / `zentao_close.js` 默认读 `out/task-tree.json`，二选一：
+> - a) 替换：`cp out/task-tree-scheduled.json out/task-tree.json`（推荐，后续命令无需改动；Windows 用 `Copy-Item`）；
+> - b) 显式指定：`node scripts/zentao_sync.js --tree out/task-tree-scheduled.json --sample`，**闭环也要用同一个 `--tree`**（任务编号会回填到指定的那棵树里）。
+> 若跳过铺排直接建单也能跑，但任务日期会沿用「提交日期区间」，可能出现单日峰值。
+
 ## 5. 阶段④ 禅道建单
 
 ### 5.1 登录态与目标定位（★人工优先，省时且不易误判）
@@ -395,7 +401,8 @@ node scripts/zentao_locate.js             # 识别 execution-task-<ID> 并回填
 - **关键坑**：URL 第 4 参数 `parent` 在新版界面不生效。创建后必须用 `task-edit-{id}.html` 表单补写 `parent`，脚本已内置该步骤，无需人工干预。
 - 叶子任务写入 `estimate`（分档工时）与 `assignedTo`（本人账号）；月份/模块父任务不填工时。
 - 编号回查：列表页 iframe 会重建，需**遍历所有 frame** 匹配 `a[href*="task-view-"]` 的文本；兜底用全文检索 `/zentao/search-index.html?words=<任务名>`。
-- 脚本按「叶子优先收集编号 → 回填父级」顺序执行，并支持 `--resume` 断点续建。
+- 脚本按「叶子优先收集编号 → 回填父级」顺序执行；**断点续跑是内建行为**——已建任务在树里带 `id`，重复执行会自动跳过创建，因此中断后直接重跑即可（无需额外参数）。
+- `--sample` 与 `--all` 互斥：先 `--sample` 验证一条链路，确认层级与字段无误后再全量（`--all` 或直接不带参数，二者等价）。
 
 ### 5.4 存量任务复用（对方/上一轮已建过同名月份任务）
 
@@ -568,3 +575,34 @@ node scripts/portfolio.js --check      # 校验各月合计是否超上限
 | 详情页读不到实际完成时间 | 改从 `task-edit-{id}.html` 的 `finishedDate` 读取 |
 
 详细坑位与验证方法见 `references/zentao-ui-pitfalls.md`，平台接口差异见 `references/platforms.md`。
+
+## 10. 命令行参数速查
+
+所有脚本都支持不带参数运行以了解用法；下面只列「常用但正文未展开」的参数。
+
+| 脚本 | 参数 | 作用 |
+|---|---|---|
+| `doctor.js` | 无 | 环境体检；退出码 `0` 全绿、`1` 有 FAIL |
+| `zentao_locate.js` | `--open` | 先打开禅道项目列表页，便于人工点进目标执行 |
+| | `--from-url "<执行任务列表URL>"` | 已知 URL 时直接识别编号（应急入口） |
+| | `--list` | 列出当前所有已开页面的识别结果 |
+| | `--no-write` / `--timeout <秒>` | 只识别不写回 config（默认会回填编号）/ 自定义等待时长（默认 300s） |
+| `collect_commits.js` | `--repos a,b` | 只采集指定仓库（多人多仓库时缩小范围） |
+| | `--verbose` | 打印前 5 条采集结果的完整字段，便于核对作者与模块识别 |
+| `import_manual.js` | `--init` | 生成记录模板（含格式说明与示例，不覆盖已有文件） |
+| | `--file <路径>` / `--repo <名>` / `--domain <域>` | 自定义记录文件、仓库归属与业务域 |
+| `plan_tasks.js` | `--month 2026-07` | 只汇总指定月份（补某一个月时用） |
+| `check_estimate.js` | `--json` | 额外输出 `out/estimate-check.json`（便于脚本化比对） |
+| | `--apply-suggest` | 把建议工时写成 `out/patch-plan-suggest.json`，可复制为 `patch-plan.json` 交给 `zentao_patch.js` |
+| | `--tree <路径>` | 校验指定任务树（默认 `out/task-tree.json`；铺排后用 `out/task-tree-scheduled.json`） |
+| `schedule_dates.js` | `--apply` / `--max-daily N` / `--today YYYY-MM-DD` | 落盘铺排结果到 `out/task-tree-scheduled.json` / 自定义单日上限 / 指定“今天” |
+| `zentao_sync.js` | `--sample` / `--all` / `--check` | 每层各建 1 条样本 / 显式全量（与不带参数等价，二者互斥）/ 只做定位与查重、不建任何任务 |
+| | `--tree <路径>` | 指定任务树（默认 `out/task-tree.json`；铺排后用 `out/task-tree-scheduled.json`） |
+| `zentao_close.js` | `--sample` / `--all` / `--verify` | 先闭环 1 条叶子 / 显式全量 / 只做核验 |
+| | `--tree <路径>` | 指定任务树（**必须与建单时一致**，否则读不到任务编号） |
+| `zentao_patch.js` | `--dry` / `--only <id>` / `--reset-desc` | 预览不落库 / 只处理指定任务 / 覆盖已有描述（默认仅在为空时写入） |
+| `zentao_rework.js` | `--dry` / `--only <id>` / `--limit N` | 预览 / 单条验证 / 限制处理条数（先小批量验证） |
+| `zentao_converge.js` | `--dry` | 预览「预计 ≠ 消耗」的不一致清单 |
+| `portfolio.js` | `--record` / `--check` / `--list` / `--cap N` | 写台账 / 汇总校验（默认动作）/ 查看台账 / 临时覆盖月度上限 |
+
+> 约定：所有涉及写操作的脚本都提供预览开关（`--dry` / `--preview` / `--sample` / `--check`），请遵循「先看后写、先样本后全量」。

@@ -2,6 +2,19 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## v1.2.1（2026-09-14）
+
+**流程修复：日期铺排的结果现在真正能进入建单**
+
+- `zentao_sync.js` / `zentao_close.js` 新增 `--tree <路径>`：可直接使用 `out/task-tree-scheduled.json`（此前铺排结果无法被建单使用，只能手动改名替换）。`schedule_dates.js --apply` 现在会打印下一步提示。
+- 修复 `zentao_sync.js` / `zentao_close.js` 未导入 `arg`，导致 `--all` 等参数从未被解析的问题；新增 `--all` 与 `--sample` 互斥校验（在读取任务树/连接浏览器之前即报错）。
+- `portfolio.js` 明确「不带参数即执行校验」的语义（与 `--check` 等价）。
+
+**文档**
+
+- SKILL.md 新增「§10 命令行参数速查」表，覆盖全部脚本的命令行开关与预览约定。
+- README 实测实录更新为含「会议 / 运维 + 人工工时」的混合运行结果；流水线补充 `import_manual` 步骤与铺排结果的使用方式。
+
 ## v1.2.0（2026-09-14）
 
 **办公记录：覆盖更多办公场景，录入更方便**

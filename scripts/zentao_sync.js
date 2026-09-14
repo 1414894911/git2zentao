@@ -8,11 +8,13 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { loadConfig, outDir, readJson, writeJson, requireFromAnywhere, log, has } = require('./lib/common');
+const { loadConfig, outDir, readJson, writeJson, requireFromAnywhere, log, has, arg } = require('./lib/common');
 const { Zentao } = require('./lib/zentao');
 
 const cfg = loadConfig();
-const TREE_FILE = path.join(outDir(cfg), 'task-tree.json');
+const TREE_FILE = typeof arg('--tree') === 'string'
+  ? path.resolve(String(arg('--tree')))
+  : path.join(outDir(cfg), 'task-tree.json');
 
 async function connect() {
   const pw = requireFromAnywhere('playwright-core');
@@ -128,6 +130,11 @@ async function setParent(zt, id, parentId) {
   const tree = readJson(TREE_FILE);
   const z = cfg.zentao || {};
   const assignedTo = z.assignedTo || (cfg.authors.accounts || [])[0];
+  // 参数互斥先校验（在建单/连接浏览器之前就报错，避免白连一次）
+  if (has('--all') && has('--sample')) {
+    console.error('--all 与 --sample 不能同时使用：先 --sample 验证一条链路，再执行 --all 或直接不带参数全量。');
+    process.exit(1);
+  }
   const { browser, page, zt } = await connect();
 
   try {

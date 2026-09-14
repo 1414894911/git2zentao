@@ -4,6 +4,7 @@
  *
  *   node scripts/portfolio.js --record            # 把当前项目（config.outDir 的任务树）写入台账
  *   node scripts/portfolio.js --check             # 汇总所有项目的月度合计，校验是否超过上限
+ *   node scripts/portfolio.js                     # 不带参数即执行校验（与 --check 等价，便于脚本化时显式书写）
  *   node scripts/portfolio.js --check --cap 180   # 自定义上限
  *   node scripts/portfolio.js --list              # 列出台账中的项目与月份工时
  *

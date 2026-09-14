@@ -108,55 +108,65 @@ flowchart LR
 
 ## 🎬 实测实录
 
-下面是用本仓库脚本真实跑出来的结果（演示仓库：7 次代码提交 + 4 条办公记录），非示意图：
+下面是用本仓库脚本真实跑出来的结果（演示仓库：7 次代码提交 + 5 条办公记录），非示意图：
 
 **① 采集提交**
 
 ```text
-采集完成：7 条提交（另保留办公记录 4 条）
-按月份： {"2026-07":11}
-按仓库： {"my-web":7,"work-log":4}
+采集完成：7 条提交
+按月份： {"2026-07":7}　按仓库： {"my-web":7}
 ```
 
-**② 导入办公记录（企业微信 AI 月度总结，4 条）**
+**② 导入办公记录（含 AI 总结与手动录入）**
 
 ```text
-导入完成：新增 4 条。
-out/commits.json 现共 11 条记录（代码提交 7 + 办公记录 4）。
+out/commits.json 现共 12 条记录（代码提交 7 + 办公记录 5）。
+```
+
+对应的记录原文（`out/manual-work.md`，标注可选、顺序不限）：
+
+```text
+2026-07-05 [地图与可视化] 需求评审：确认流域分级渲染交互方案
+2026-07-08 [站点数据] (1.5h) 与后端联调对齐数据口径
+07-22 (0.5h) 项目周会与进度同步
+2026-07-24 (3h) [运维] 线上告警处理与故障排查
+2026-07-30 （1h）新同事环境搭建支持
 ```
 
 **③ 汇总为任务并自动定档（代码 + 办公一起）**
 
 ```text
 ### map（14h）
-- 新增流域图层分级渲染          4h（中等）
-- 修正图层切换后图例不更新      2h（一般）
-- 集成第三方底图服务接口        8h（高复杂）
+- 新增流域图层分级渲染        4h（中等）
+- 修正图层切换后图例不更新    2h（一般）
+- 集成第三方底图服务接口      8h（高复杂）
 
 ### 地图与可视化（4h）
-- 需求评审：确认流域分级渲染交互方案    4h（中等）　[办公记录]
+- 需求评审：确认流域分级渲染交互方案    4h（中等）　[办公]
 
-### 驾驶舱（4h）
-- 新增首页指标卡片组件          4h（中等）
-
-### 站点数据（8h）
-- 与后端联调对齐数据口径与异常处理      8h（高复杂）　[办公记录]
+### 站点数据（1.5h）
+- 与后端联调对齐数据口径        1.5h（一般）　[办公]　← 人工标 (1.5h)
 
 ### 设备管理（11h）
 - 重构设备台账列表与详情          4h（中等）
 - 新增巡检数据批量导入与校验      3h（常规）
 - 修正导出数据与页面筛选不一致    4h（中等）
 
-（另有「通用」模块 2 条办公任务：编写对接文档 8h、部署测试环境 4h，略）
+### 运维（3h）
+- 线上告警处理与故障排查        3h（常规）　[办公]　← 人工标 (3h)
+
+### 通用（2h）
+- 项目周会与进度同步            1h（简单）　[办公]　← 人工标 (0.5h)，按单任务下限收敛
+- 新同事环境搭建支持            1h（简单）　[办公]
 ```
 
 **④ 工时体检（不再一眼假）**
 
 ```text
 | 月份    | 父任务         | 功能点 | 合计工时 | 目标 | 涉及工作日 | 单日峰值 |
-| 2026-07 | 张三七月份任务 | 11     | 53h      | 30   | 11         | 8.0h     |
+| 2026-07 | 张三七月份任务 | 12     | 39.5h    | 30   | 11         | 8.0h     |
 
-结论：ERROR 0 项，WARN 3 项
+结论：ERROR 0 项，WARN 2 项
 ```
 
 **⑤ 日期铺排（把峰值摊平）**
@@ -165,7 +175,7 @@ out/commits.json 现共 11 条记录（代码提交 7 + 办公记录 4）。
 单日峰值：铺排前 8.0h → 铺排后 4.0h
 ```
 
-可以看到这套规则的实际取舍：**接口集成 8h、联调沟通 8h、需求评审 4h、样式文案类 1~2h**，同时把「一天干 8h」自动摊到两天——既不会把简单活报高，也不会把硬骨头报低；非代码工作与代码工作同树汇报、各标来源。
+可以看到这套规则的实际取舍：**接口集成 8h、需求评审 4h、运维告警 3h、会议 0.5h→1h**——代码任务按难度定档、办公任务按你标注的工时计，混合后同树汇报、各标来源，并把「一天干 8h」自动摊到两天。
 
 ## 😮‍💨 它治好了哪些「汇报内耗」
 
@@ -255,13 +265,15 @@ S=~/.workbuddy/skills/git2zentao/scripts
 node $S/doctor.js                                        # ⓪ 环境必须全绿
 node $S/zentao_locate.js                                 # ⓪ 人工进入项目/执行，脚本固化编号
 node $S/collect_commits.js --from 2026-07-01 --to 2026-08-01   # ① 采集本人提交
+node $S/import_manual.js --init                                  # ①补 首次：生成办公记录模板（可选手动录入）
+node $S/import_manual.js                                         # ①补 导入办公记录（AI 总结 + 手动录入）
 node $S/plan_tasks.js --preview                          # ② 先看预览再落盘（难度阶梯工时）
 node $S/plan_tasks.js
 node $S/check_estimate.js                                # ②补 工时体检：单任务/单日/月度/难度匹配
-node $S/schedule_dates.js --apply                        # ②补 日期铺排：消除单日峰值
+node $S/schedule_dates.js --apply && cp out/task-tree-scheduled.json out/task-tree.json  # ②补 日期铺排，并让建单使用铺排后的树（Windows 用 Copy-Item）
 node $S/zentao_sync.js --sample && node $S/zentao_sync.js --all   # ③ 建单（先样本后全量）
 node $S/zentao_close.js --sample && node $S/zentao_close.js --all # ④ 闭环：消耗=预计、剩余 0
-node $S/portfolio.js --record && node $S/portfolio.js --check     # ⑤ 全项目月度合计校验
+node $S/portfolio.js --record && node $S/portfolio.js --check     # ⑤ 全项目月度合计校验（超限须回到用户确认）
 
 # 存量任务复用（别人 / 上一轮已建过月份任务时，不重建）
 node $S/zentao_patch.js --dry && node $S/zentao_patch.js
@@ -270,7 +282,7 @@ node $S/zentao_rework.js --dry && node $S/zentao_rework.js
 node $S/zentao_converge.js --dry && node $S/zentao_converge.js
 ```
 
-输出产物都在 `out/`：`commits.json`（提交明细与办公记录）、`plan-preview.md`（汇总预览）、`task-tree.json`（任务树）、`estimate-check.md`（工时体检报告）、`schedule-plan.md`（日期铺排方案）、`manual-work.md`（办公记录原文，可选）。
+输出产物都在 `out/`：`commits.json`（提交明细与办公记录）、`plan-preview.md`（汇总预览）、`task-tree.json`（任务树）、`estimate-check.md`（工时体检报告）、`schedule-plan.md`（日期铺排方案）、`task-tree-scheduled.json`（铺排后的任务树，`--apply` 时生成）、`manual-work.md`（办公记录原文，可选）。
 
 ## 📥 办公记录也能上账（企业微信 / 钉钉 / 飞书）
 

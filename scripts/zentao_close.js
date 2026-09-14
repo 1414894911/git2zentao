@@ -8,11 +8,13 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { loadConfig, outDir, readJson, requireFromAnywhere, log, has } = require('./lib/common');
+const { loadConfig, outDir, readJson, requireFromAnywhere, log, has, arg } = require('./lib/common');
 const { Zentao } = require('./lib/zentao');
 
 const cfg = loadConfig();
-const TREE_FILE = path.join(outDir(cfg), 'task-tree.json');
+const TREE_FILE = typeof arg('--tree') === 'string'
+  ? path.resolve(String(arg('--tree')))
+  : path.join(outDir(cfg), 'task-tree.json');
 const CLOSE = cfg.close || {};
 const START_T = CLOSE.startTime || '09:00';
 const FINISH_T = CLOSE.finishTime || '18:00';
@@ -74,6 +76,11 @@ function collectItems(tree) {
 }
 
 (async () => {
+  // 参数互斥先校验（在读取任务树/连接浏览器之前就报错）
+  if (has('--all') && has('--sample')) {
+    console.error('--all 与 --sample 不能同时使用：先 --sample 验证一条，再执行 --all 或直接不带参数全量。');
+    process.exit(1);
+  }
   const tree = readJson(TREE_FILE);
   let items = collectItems(tree);
   if (!items.length) throw new Error('task-tree.json 中没有任务编号，请先执行 zentao_sync.js');
