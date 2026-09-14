@@ -7,6 +7,7 @@
  * 输出：out/commits.json
  */
 const path = require('path');
+const fs = require('fs');
 const {
   loadConfig, outDir, writeJson, log, arg, has, git,
   authorMatcher, gitAuthorRegex
@@ -138,15 +139,29 @@ function moduleOf(file, cfg) {
   }
 
   all.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const file = writeJson(path.join(outDir(cfg), 'commits.json'), all);
+
+  // 保留已导入的办公记录（import_manual.js 写入，source=manual）：git 重采不会把非代码工作冲掉
+  const outFile = path.join(outDir(cfg), 'commits.json');
+  let kept = [];
+  if (fs.existsSync(outFile)) {
+    try {
+      kept = JSON.parse(fs.readFileSync(outFile, 'utf-8').replace(/^\uFEFF/, '')).filter((c) => c && c.source === 'manual');
+    } catch (e) { kept = []; }
+  }
+  if (kept.length) {
+    const gitKeys = new Set(all.map((c) => `${c.date}|${c.subject}|${c.repo}`));
+    kept = kept.filter((c) => !gitKeys.has(`${c.date}|${c.subject}|${c.repo}`));
+  }
+  const mergedAll = all.concat(kept).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const file = writeJson(outFile, mergedAll);
 
   const byMonth = {};
   const byRepo = {};
-  for (const c of all) {
+  for (const c of mergedAll) {
     byMonth[c.date.slice(0, 7)] = (byMonth[c.date.slice(0, 7)] || 0) + 1;
     byRepo[c.repo] = (byRepo[c.repo] || 0) + 1;
   }
-  console.log(`\n采集完成：${all.length} 条提交 → ${file}`);
+  console.log(`\n采集完成：${all.length} 条提交${kept.length ? `（另保留办公记录 ${kept.length} 条）` : ''} → ${file}`);
   console.log('按月份：', JSON.stringify(byMonth));
   console.log('按仓库：', JSON.stringify(byRepo));
   console.log(`时间范围：${SINCE} ~ ${UNTIL}；作者标识：${JSON.stringify(cfg.authors)}`);

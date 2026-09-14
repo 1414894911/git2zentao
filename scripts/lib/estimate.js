@@ -136,7 +136,7 @@ function suggestHours(title, opts = {}) {
     code = 'T2';
     reasons.push('难度判定 一般（仅配置/地址/路径类调整，不涉及开发改造）→ 基线 2h');
   } else {
-    reasons.push(`难度判定 ${tierOf(code).name}（${hits.length ? hits.map((h) => h.why).join('；') : '未命中明确信号，按中等功能开发计'}）→ 基线 ${tierOf(code).max}h`);
+    reasons.push(`难度判定 ${tierOf(code).name}（${hits.length ? hits.map((h) => h.why).join('、') : '未命中明确信号，按中等功能开发计'}）→ 基线 ${tierOf(code).max}h`);
   }
 
   let h = tierOf(code).max;
@@ -153,8 +153,8 @@ function suggestHours(title, opts = {}) {
     }
   }
   const c = Number(opts.commits || 0);
-  if (c >= 3) { h += 2; reasons.push(`来源提交 ${c} 条（跨多次改动），+2h`); }
-  else if (c === 2) { h += 1; reasons.push('来源提交 2 条，+1h'); }
+  if (c >= 3) { h += 2; reasons.push(`来源记录 ${c} 条（跨多次改动），+2h`); }
+  else if (c === 2) { h += 1; reasons.push('来源记录 2 条，+1h'); }
 
   const clamped = Math.min(max, Math.max(min, h));
   if (clamped !== h) reasons.push(`按区间 [${min}, ${max}] 收敛为 ${clamped}h`);

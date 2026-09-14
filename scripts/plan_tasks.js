@@ -121,6 +121,24 @@ function clusterCommits(list, threshold, maxClusters) {
   return clusters;
 }
 
+/** 统计提交构成：代码提交数 + 办公记录数（办公记录来自 import_manual.js，source=manual） */
+function commitSplit(nodes) {
+  let code = 0, manual = 0;
+  for (const n of nodes) {
+    for (const c of n.commits || []) (c.source === 'manual' ? manual++ : code++);
+  }
+  return { code, manual };
+}
+
+/** 预览里的数量标注：含办公记录时不再笼统写「提交」 */
+function countLabel(commits) {
+  const manual = commits.filter((c) => c.source === 'manual').length;
+  const code = commits.length - manual;
+  if (manual && code) return `${code}+${manual} 条`;
+  if (manual) return `${manual} 办公`;
+  return `${code} 提交`;
+}
+
 (async () => {
   const commits = readJson(path.join(outDir(cfg), 'commits.json'));
   const name = primaryDisplayName(cfg);
@@ -137,12 +155,13 @@ function clusterCommits(list, threshold, maxClusters) {
 
   for (const ym of Object.keys(months).sort()) {
     const list = months[ym];
+    const monthManual = list.filter((c) => c.source === 'manual').length;
     const monthNode = {
       title: (cfg.naming && cfg.naming.monthTask
         ? cfg.naming.monthTask.replace('{displayName}', name).replace('{monthCn}', monthCn(ym))
         : `${name}${monthCn(ym)}月份任务`),
       month: ym,
-      desc: `统计范围：${[...new Set(list.map((c) => c.repo))].join('、')}；时间：${ym}-01 ~ ${ym}-31（实际截至 ${list.map((c) => c.date).sort().pop()}）；提交数：${list.length} 条（不含 Merge）；模块数：{{MODULES}}。`,
+      desc: `统计范围：${[...new Set(list.map((c) => c.repo))].join('、')}；时间：${ym}-01 ~ ${ym}-31（实际截至 ${list.map((c) => c.date).sort().pop()}）；提交数：${list.length - monthManual} 条（不含 Merge）${monthManual ? `；办公记录：${monthManual} 条` : ''}；模块数：{{MODULES}}。`,
       commits: list,
       children: []
     };
@@ -230,11 +249,12 @@ function clusterCommits(list, threshold, maxClusters) {
       mod.hours = csum;
       mod.firstDate = mod.children.map((l) => l.firstDate).sort()[0];
       mod.lastDate = mod.children.map((l) => l.lastDate).sort().pop();
+      const modCommit = commitSplit(mod.children);
       mod.desc = buildModuleDesc({
         project: (cfg.zentao || {}).projectName || '',
         titles: mod.children.map((l) => l.title),
         firstDate: mod.firstDate, lastDate: mod.lastDate,
-        commitCount: mod.children.reduce((a, l) => a + (l.commits || []).length, 0),
+        commitCount: modCommit.code, manualCount: modCommit.manual,
         hours: csum
       });
     }
@@ -242,12 +262,13 @@ function clusterCommits(list, threshold, maxClusters) {
     m.firstDate = m.children.map((c) => c.firstDate).filter(Boolean).sort()[0] || '';
     m.lastDate = m.children.map((c) => c.lastDate).filter(Boolean).sort().pop() || '';
     m.hours = mh;
+    const mCommits = commitSplit(m.children);
     m.desc = buildMonthDesc({
       repos: [...new Set(m.commits.map((c) => c.repo))].join('、'),
       project: (cfg.zentao || {}).projectName || '',
       monthLabel: m.month,
       firstDate: m.firstDate, lastDate: m.lastDate,
-      commitCount: m.commits.length,
+      commitCount: mCommits.code, manualCount: mCommits.manual,
       moduleCount: m.children.length,
       leafCount: m.children.reduce((a, c) => a + c.children.length, 0),
       hours: mh,
@@ -275,13 +296,13 @@ function clusterCommits(list, threshold, maxClusters) {
   // 5) 输出
   if (PREVIEW) {
     const lines = ['# 需求汇总预览', '',
-      `作者：${name}；提交总数：${commits.length}；功能点任务：${leafCount}`, ''];
+      `作者：${name}；记录总数：${commits.length}（代码提交 + 办公记录）；功能点任务：${leafCount}`, ''];
     for (const m of tree.months) {
       lines.push(`## ${m.title}（合计 ${m.hours}h）`, '', `> ${m.desc}`, '');
       for (const mod of m.children) {
         lines.push(`### ${mod.title}（${mod.hours}h，${mod.firstDate} → ${mod.lastDate}）`);
         for (const leaf of mod.children) {
-          lines.push(`- ${leaf.title}　\`${leaf.estimate}h\`（${leaf.level}）　${leaf.firstDate} → ${leaf.lastDate}　[${leaf.commits.length} 提交]`);
+          lines.push(`- ${leaf.title}　\`${leaf.estimate}h\`（${leaf.level}）　${leaf.firstDate} → ${leaf.lastDate}　[${countLabel(leaf.commits)}]`);
         }
         lines.push('');
       }
@@ -297,7 +318,7 @@ function clusterCommits(list, threshold, maxClusters) {
 
   const file = writeJson(path.join(outDir(cfg), 'task-tree.json'), tree);
   console.log(`任务树已生成：${file}`);
-  console.log(`月份数 ${tree.months.length}，模块数 ${tree.months.reduce((s, m) => s + m.children.length, 0)}，功能点 ${leafCount}`);
+  console.log(`月份数 ${tree.months.length}，模块数 ${tree.months.reduce((s, m) => s + m.children.length, 0)}，功能点 ${leafCount}（含办公记录）`);
   console.log('工时合计：', JSON.stringify(monthHours));
   if (shortfalls.length) console.log('⚠️ 月度工时未达标：\n  ' + shortfalls.join('\n  ') + SHORTFALL_TIP);
 })().catch((e) => { console.error('汇总失败：', e.message); process.exit(1); });

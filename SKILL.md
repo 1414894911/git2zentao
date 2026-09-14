@@ -1,7 +1,7 @@
 ---
 name: git2zentao
-description: 全流程自动化技能包：代码提交 → 需求汇总 → 禅道任务创建 → 任务闭环。支持 Gitea/GitHub/Gitee 与禅道（Zin/经典版）多平台配置，自动探测本地环境（node/浏览器/playwright-core/CDP/git），按本人账号与时间范围读取提交、聚类汇总为需求功能，在禅道项目中创建「月份父任务 → 模块子任务 → 功能点叶子任务」三层结构并按难度设定预估工时，最后按提交日期推进并完成任务形成闭环。难度等级（T1~T7）信号默认面向 WebGIS/可视化开发，可通过 config.estimate.tierRules 按自己的技术栈定制。任务描述同时面向领导（交付成果与价值）与同事/审计（来源提交与工时依据）生成，并支持存量任务复用、补写、重排与全项目月度工时总量校验。触发词：提交转禅道、代码提交生成任务、Git 提交汇总禅道、禅道任务闭环、工时汇报、补工时、工时上账、工作日志、周报月报汇总、禅道建单、commit to zentao、git2zentao、工时任务自动创建。
-version: 1.0.0
+description: 全流程自动化技能包：代码提交 → 需求汇总 → 禅道任务创建 → 任务闭环。支持 Gitea/GitHub/Gitee 与禅道（Zin/经典版）多平台配置，自动探测本地环境（node/浏览器/playwright-core/CDP/git），按本人账号与时间范围读取提交、聚类汇总为需求功能，并支持导入企业微信/钉钉/飞书等办公平台 AI 生成的月度工作总结（需求评审、接口/文档对接、联调支持等非代码工作），在禅道项目中创建「月份父任务 → 模块子任务 → 功能点叶子任务」三层结构并按难度设定预估工时，最后按提交日期推进并完成任务形成闭环。难度等级（T1~T7）信号默认面向 WebGIS/可视化开发，可通过 config.estimate.tierRules 按自己的技术栈定制。任务描述同时面向领导（交付成果与价值）与同事/审计（来源提交与工时依据）生成，并支持存量任务复用、补写、重排与全项目月度工时总量校验。触发词：提交转禅道、代码提交生成任务、Git 提交汇总禅道、禅道任务闭环、工时汇报、补工时、工时上账、工作日志、周报月报汇总、办公记录导入、工作记录导入、月度工作总结、禅道建单、commit to zentao、git2zentao、工时任务自动创建。
+version: 1.1.0
 agent_created: true
 ---
 
@@ -16,6 +16,7 @@ agent_created: true
 | ⓪ 目标定位 | `scripts/zentao_locate.js` | 人工在浏览器里进入目标项目/执行 | 回填 `config.zentao.projectId/executionId` |
 | ① 环境检测 | `scripts/doctor.js` | `config.json` | 环境体检报告（缺什么、怎么补） |
 | ② 提交采集 | `scripts/collect_commits.js` | 仓库清单 + 时间范围 + 作者 | `out/commits.json` |
+| ②-补 办公记录导入 | `scripts/import_manual.js` | 企业微信/钉钉/飞书 AI 月度总结（纯文本） | 并入 `out/commits.json`（含非代码工作） |
 | ③ 需求汇总 | `scripts/plan_tasks.js` | `commits.json` | `out/task-tree.json`（含层级/描述/工时） |
 | ③-补 工时校验 | `scripts/check_estimate.js` | `task-tree.json` + `workload` 约束 | `out/estimate-check.md`（ERROR/WARN + 工时建议） |
 | ③-补 日期铺排 | `scripts/schedule_dates.js` | `task-tree.json` | `out/schedule-plan.md`（消除单日峰值 / 锚定提交日） |
@@ -47,6 +48,9 @@ node ~/.workbuddy/skills/git2zentao/scripts/zentao_locate.js
 
 # 5) 采集提交（本地仓库或远程平台）
 node ~/.workbuddy/skills/git2zentao/scripts/collect_commits.js --from 2026-07-01 --to 2026-08-01
+
+# 5b) （可选）导入办公记录：企业微信/钉钉/飞书的 AI 月度总结，覆盖评审/联调/文档等非代码工作，见 §3.4
+node ~/.workbuddy/skills/git2zentao/scripts/import_manual.js --dry
 
 # 6) 汇总为任务树（先看预览，再落盘）；工时按难度阶梯自动分档
 node ~/.workbuddy/skills/git2zentao/scripts/plan_tasks.js --preview
@@ -116,6 +120,42 @@ node ~/.workbuddy/skills/git2zentao/scripts/portfolio.js --check
 ### 3.3 作者识别规则
 按 `config.authors` 配置多个身份（用户名、中文名、邮箱），任一命中即计入；远程平台若接口不支持作者过滤，则在本地二次筛选。
 
+### 3.4 办公记录导入（非代码提交类工作，企业微信 / 钉钉 / 飞书）
+
+git 只能覆盖「写了代码」的部分；需求评审与确认、接口/文档对接、联调与测试支持、部署运维、方案与文档编写、跨部门沟通同样占用工时，却查无提交。本技能支持把这些工作并入同一条流水线：
+
+**① 让办公平台的 AI 生成月度工作总结**（在企业微信 / 钉钉 / 飞书的 AI 助手里发）：
+
+```text
+请把我本月（07-01 ~ 07-31）在群聊、文档、会议、日报里参与的工作整理成月度工作记录，
+按日期逐条输出，每行一条，格式：`日期 事项描述`（说明做了什么、涉及哪个模块/需求）。
+重点覆盖：需求功能讨论与确认、接口与文档对接、联调与测试支持、部署与运维、方案与文档编写。
+闲聊与无关内容不要输出。
+```
+
+**② 存为纯文本**（默认 `out/manual-work.md`，每行一条）：
+
+```text
+2026-07-05 [地图与可视化] 需求评审：确认流域分级渲染交互方案
+2026-07-08 [站点数据] 与后端联调对齐数据口径与异常处理
+2026-07-12 编写数据接入对接文档并同步给后端
+2026-07-19 部署测试环境并支持验收问题排查
+```
+
+**③ 导入合并**（幂等，重复导入自动按「日期+事项+仓库」去重）：
+
+```bash
+node scripts/import_manual.js --dry                 # 先预览
+node scripts/import_manual.js                       # 默认读 out/manual-work.md，合并进 out/commits.json
+node scripts/import_manual.js --file work.txt --repo my-web --domain 前端可视化
+```
+
+**口径与边界**：
+- 导入记录带 `source:"manual"` 标记，任务描述中以**【办公记录】**呈现（带日期与事项原文），不会伪造 commit hash 冒充代码提交；
+- 与代码提交走同一套聚类与难度分档，日期参与铺排锚定；
+- 只有纯办公记录时（本机无仓库）也可以单独使用：跳过 `collect_commits.js`，直接导入即可；
+- **只导入你本人参与的工作**，导入前应核对一遍 AI 生成的记录是否属实——描述的【办公记录】段是审计可查的，编造条目会被同事后追溯到。
+
 ## 4. 阶段③ 需求汇总
 
 `plan_tasks.js` 做三件事：**清理 → 聚类 → 分档**。
@@ -168,7 +208,7 @@ node ~/.workbuddy/skills/git2zentao/scripts/portfolio.js --check
 
 加成与收敛规则：
 - 一句标题里塞了多个功能点（`；`/`，`/`、`/序号分隔）→ 每多一项 +2h，封顶 +6h（样式/配置类最多 +1h）；
-- 来源提交 ≥3 条 +2h、=2 条 +1h；
+- 来源记录 ≥3 条 +2h、=2 条 +1h（代码提交与办公记录都算）；
 - 命中多条难度规则时**就高不就低**（如「列表 + 接口对接」按接口对接计），并把命中的理由写进任务描述的 `【工时依据】`，便于解释；
 - 统一收敛到 `[minTaskHours, maxTaskHours]` 并对齐工时阶梯（1/2/3/4/6/8/10/12…）。
 
@@ -249,10 +289,15 @@ node scripts/portfolio.js --list      # 查看台账
 · <hash>（<日期>）<提交说明原文>
 · 变更类型：feat·模拟分析、fix·river
 
+（若该功能点来自办公记录导入，此处为）
+【办公记录（N 条）】
+· <日期>　<事项描述>
+· 来源：企业微信 / 钉钉 / 飞书等办公平台整理的工作记录（非代码提交）
+
 【工时依据】
 · 难度档位：高复杂
 · 难度判定 高复杂（后端服务/数据处理/模块级开发）→ 基线 8h
-· 来源提交 3 条，+2h
+· 来源记录 3 条，+2h
 · 预计工时：10h
 ```
 

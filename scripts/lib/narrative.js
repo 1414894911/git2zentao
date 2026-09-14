@@ -19,6 +19,10 @@ const OUTCOMES = [
   { re: /三维|场景|大屏|可视化|图层|地图|驾驶舱/, tpl: (t) => `完成「${t}」，实现业务数据的空间化呈现，提升指挥调度与业务研判的直观性` },
   { re: /图表|曲线|统计|看板|报表|导出/, tpl: (t) => `完成「${t}」，补齐数据分析视图，支撑业务人员按维度查看与比对关键指标` },
   { re: /预案|预演|调度|预警|监测/, tpl: (t) => `完成「${t}」，完善业务闭环能力，提升风险预警与应急处置的时效性` },
+  { re: /需求评审|评审|需求确认/, tpl: (t) => `完成「${t}」，与相关方确认需求范围与验收口径，减少后期返工与理解偏差` },
+  { re: /文档|方案设计|编写|撰写/, tpl: (t) => `完成「${t}」，沉淀结论与对接信息为可复用文档，降低沟通成本与交接风险` },
+  { re: /部署|发布|运维|上线/, tpl: (t) => `完成「${t}」，保障环境可用与版本交付，缩短问题响应时间` },
+  { re: /会议|沟通|协调|跟进|培训|支持/, tpl: (t) => `完成「${t}」，对齐各方进度与分工，消除信息差与阻塞` },
   { re: /新增|开发|实现|搭建|建设/, tpl: (t) => `完成「${t}」，按需求交付可用功能并完成自测，支撑对应业务场景落地` },
   { re: /样式|标题|文案|配置|调整|美化|适配/, tpl: (t) => `完成「${t}」，提升界面规范性与信息可读性，改善用户使用体验` }
 ];
@@ -76,15 +80,24 @@ function buildLeafDesc(p) {
   const tech = techOf(p.title, p.commits);
   if (tech.length) L.push(`· 涉及技术：${tech.join('、')}`);
 
-  if (p.commits && p.commits.length) {
+  const all = p.commits || [];
+  const code = all.filter((c) => c.source !== 'manual');
+  const manual = all.filter((c) => c.source === 'manual');
+  if (code.length) {
     L.push('');
-    L.push(`【来源提交（${p.commits.length} 条）】`);
-    for (const c of p.commits) L.push(`· ${c.hash}（${c.date}）${String(c.subject || '').replace(/\n/g, ' ')}`);
-    const tg = tagsOf(p.commits);
+    L.push(`【来源提交（${code.length} 条）】`);
+    for (const c of code) L.push(`· ${c.hash}（${c.date}）${String(c.subject || '').replace(/\n/g, ' ')}`);
+    const tg = tagsOf(code);
     if (tg.length) L.push(`· 变更类型：${tg.join('、')}`);
-  } else {
+  } else if (!manual.length) {
     L.push('');
     L.push('【说明】本项为需求沟通、接口联调与页面自测类工作，无独立代码提交，工作量按功能点评估。');
+  }
+  if (manual.length) {
+    L.push('');
+    L.push(`【办公记录（${manual.length} 条）】`);
+    for (const m of manual) L.push(`· ${m.date}　${String(m.subject || '').replace(/\n/g, ' ')}`);
+    L.push('· 来源：企业微信 / 钉钉 / 飞书等办公平台整理的工作记录（非代码提交）');
   }
 
   L.push('');
@@ -102,7 +115,8 @@ function buildModuleDesc(p) {
   const L = [];
   L.push(`【所属项目】${p.project}`);
   L.push(`【工作范围】${p.titles.join('；')}`);
-  L.push(`【时间跨度】${p.firstDate} ~ ${p.lastDate}；来源提交 ${p.commitCount} 条；功能点 ${p.titles.length} 个；预计工时 ${p.hours}h。`);
+  const mix = p.manualCount ? `；办公记录 ${p.manualCount} 条` : '';
+  L.push(`【时间跨度】${p.firstDate} ~ ${p.lastDate}；来源提交 ${p.commitCount} 条${mix}；功能点 ${p.titles.length} 个；预计工时 ${p.hours}h。`);
   if (p.highlights && p.highlights.length) {
     L.push('');
     L.push('【关键成果】');
@@ -117,7 +131,8 @@ function buildMonthDesc(p) {
   L.push(`【统计范围】${p.repos}`);
   L.push(`【项目】${p.project}`);
   L.push(`【时间】${p.monthLabel}（实际任务区间 ${p.firstDate} ~ ${p.lastDate}）`);
-  L.push(`【规模】提交 ${p.commitCount} 条（不含 Merge）；模块 ${p.moduleCount} 个；功能点 ${p.leafCount} 个；预计工时 ${p.hours}h。`);
+  const mix = p.manualCount ? `；办公记录 ${p.manualCount} 条` : '';
+  L.push(`【规模】提交 ${p.commitCount} 条（不含 Merge）${mix}；模块 ${p.moduleCount} 个；功能点 ${p.leafCount} 个；预计工时 ${p.hours}h。`);
   L.push('');
   L.push(`【本月工作概述】${p.overview || ''}`);
   for (const m of p.modules) L.push(`· ${m.title}（${m.hours}h）：${m.leaves.join('；')}`);
