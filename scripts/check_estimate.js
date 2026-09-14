@@ -86,12 +86,20 @@ for (const m of tree.months) {
     if (h > W.maxTaskHours) findings.push({ level: 'ERROR', code: 'E1', id: l.id, msg: `${l.title}：${h}h 超出单任务上限 ${W.maxTaskHours}h` });
     if (h < W.minTaskHours) findings.push({ level: 'ERROR', code: 'E1', id: l.id, msg: `${l.title}：${h}h 低于单任务下限 ${W.minTaskHours}h` });
 
-    const aud = auditHours(l.title, h, { min: W.minTaskHours, max: W.maxTaskHours, commits: (l.commits || []).length, tierRules: (cfg.estimate || {}).tierRules });
-    if (!aud.ok && aud.dev > 0.6) {
-      findings.push({ level: 'WARN', code: 'W2', id: l.id, msg: `${l.title}：实际 ${h}h，${aud.notes.join('；')}` });
+    // 人工指定工时（全部来源为带 hours 的办公记录）→ 跳过难度偏差校验（W2），只保留区间校验
+    const manualExplicit = (l.commits || []).length > 0 && (l.commits || []).every((c) => c.source === 'manual' && c.hours != null);
+    if (!manualExplicit) {
+      const aud = auditHours(l.title, h, { min: W.minTaskHours, max: W.maxTaskHours, commits: (l.commits || []).length, tierRules: (cfg.estimate || {}).tierRules });
+      if (!aud.ok && aud.dev > 0.6) {
+        findings.push({ level: 'WARN', code: 'W2', id: l.id, msg: `${l.title}：实际 ${h}h，${aud.notes.join('；')}` });
+      }
     }
-    const sug = suggestHours(l.title, { min: W.minTaskHours, max: W.maxTaskHours, commits: (l.commits || []).length, tierRules: (cfg.estimate || {}).tierRules });
-    suggests.push({ id: l.id || null, month: m.month, title: l.title, current: h, suggested: sug.hours, tier: sug.tier, reasons: sug.reasons });
+    if (manualExplicit) {
+      suggests.push({ id: l.id || null, month: m.month, title: l.title, current: h, suggested: h, tier: '人工指定', reasons: ['工时由办公记录人工指定'] });
+    } else {
+      const sug = suggestHours(l.title, { min: W.minTaskHours, max: W.maxTaskHours, commits: (l.commits || []).length, tierRules: (cfg.estimate || {}).tierRules });
+      suggests.push({ id: l.id || null, month: m.month, title: l.title, current: h, suggested: sug.hours, tier: sug.tier, reasons: sug.reasons });
+    }
   }
   for (const [d, h] of Object.entries(dayLoad)) {
     if (h > W.maxDailyHours) findings.push({ level: 'ERROR', code: 'E2', month: m.month, msg: `${d} 折算工时 ${h.toFixed(1)}h 超出单日上限 ${W.maxDailyHours}h` });

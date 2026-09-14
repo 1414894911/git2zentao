@@ -11,7 +11,7 @@ const path = require('path');
 const {
   loadConfig, outDir, readJson, writeJson, log, arg, has, monthCn, primaryDisplayName
 } = require('./lib/common');
-const { suggestHours } = require('./lib/estimate');
+const { suggestHours, tierByName } = require('./lib/estimate');
 const { buildLeafDesc, buildModuleDesc, buildMonthDesc } = require('./lib/narrative');
 
 const cfg = loadConfig();
@@ -218,12 +218,22 @@ function countLabel(commits) {
         let g, tierWhy = '';
         if (smart) {
           const W = cfg.workload || {};
-          const s = suggestHours(leaf.title, {
-            commits: cs.length, min: W.minTaskHours, max: W.maxTaskHours,
-            tierRules: estCfg.tierRules
-          });
-          g = { hours: s.hours, level: s.tier };
-          tierWhy = s.reasons.join('；');
+          // 全部来源都是「人工指定工时」的办公记录 → 按合计计（诚实口径，审计可查），不走标题推断
+          const allExplicit = (list) => list.length > 0 && list.every((c) => c.source === 'manual' && c.hours != null);
+          if (allExplicit(cs)) {
+            const sum = cs.reduce((a, c) => a + Number(c.hours || 0), 0);
+            const clamped = Math.min(Number(W.maxTaskHours ?? 16), Math.max(Number(W.minTaskHours ?? 1), sum));
+            g = { hours: clamped, level: tierByName(clamped).name };
+            tierWhy = `人工指定工时（办公记录）：${cs.map((c) => `${c.hours}h`).join(' + ')} = ${sum}h` +
+              (clamped !== sum ? `，按单任务区间 [${W.minTaskHours ?? 1}, ${W.maxTaskHours ?? 16}] 收敛为 ${clamped}h` : '');
+          } else {
+            const s = suggestHours(leaf.title, {
+              commits: cs.length, min: W.minTaskHours, max: W.maxTaskHours,
+              tierRules: estCfg.tierRules
+            });
+            g = { hours: s.hours, level: s.tier };
+            tierWhy = s.reasons.join('；');
+          }
         } else {
           g = gradeOf(leaf, estCfg);
         }
