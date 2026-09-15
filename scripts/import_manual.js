@@ -18,11 +18,13 @@
  *   node scripts/import_manual.js                       # 默认读取 out/manual-work.md
  *   node scripts/import_manual.js --add "07-22 (0.5h) 项目周会" --add "07-24 (3h) [运维] 线上告警处理"
  *                                                       # 免编辑：直接把记录追加进文件并导入（可重复 --add）
+ *   node scripts/import_manual.js --sync                # 对账：以记录文件为准重建办公记录（改错/删错的条目同步增删改）
+ *   node scripts/import_manual.js --sync --dry          # 对账预览：先看将新增/删除/更新哪些
  *   node scripts/import_manual.js --init                # 生成记录模板（含格式说明与示例，不覆盖已有）
  *   node scripts/import_manual.js --dry                 # 只预览不落盘（与 --add 同用可预览待补内容）
  *   node scripts/import_manual.js --file work.txt --repo my-web --domain 前端可视化
  *
- * 幂等：按「日期 + 事项 + 仓库」去重，重复导入自动跳过。
+ * 幂等：按「日期 + 事项 + 仓库」去重，重复导入自动跳过；--sync 对账模式以记录文件为准（支持更正与删除）。
  * 记录带 source:"manual" 标记，任务描述里会以【办公记录】呈现（不会冒充代码提交）。
  */
 const path = require('path');
@@ -39,6 +41,7 @@ const REPO = typeof arg('--repo') === 'string' ? String(arg('--repo')) : 'work-l
 const DOMAIN = typeof arg('--domain') === 'string' ? String(arg('--domain')) : '';
 const DRY = has('--dry');
 const INIT = has('--init');
+const SYNC = has('--sync');
 
 /** 收集所有 --add 值（可重复；用于「不想自己编辑文件，直接口述补充」的场景） */
 const ADDS = argAll('--add');
@@ -154,11 +157,8 @@ const existing = fs.existsSync(outFile) ? readJson(outFile) : [];
 if (!Array.isArray(existing)) { console.error(`out/commits.json 内容异常，请先重新执行 collect_commits.js`); process.exit(1); }
 
 const key = (r) => `${r.date}|${r.subject}|${r.repo}`;
-const seen = new Set(existing.map(key));
 const author = primaryDisplayName(cfg);
-const add = [];
-let dup = 0;
-for (const r of recs) {
+const buildRec = (r) => {
   const rec = {
     date: r.date,
     subject: r.subject,
@@ -169,6 +169,48 @@ for (const r of recs) {
     author
   };
   if (r.hours != null) rec.hours = r.hours;
+  return rec;
+};
+
+if (SYNC) {
+  // 对账模式：办公记录以当前记录文件为准全量重建——文件里删掉/改错的条目，台账同步删除/更新
+  const gitEntries = existing.filter((c) => c && c.source !== 'manual');
+  const oldManual = existing.filter((c) => c && c.source === 'manual');
+  const uniq = new Map();
+  for (const r of recs) uniq.set(`${r.date}|${r.subject}`, r);   // 文件内重复行：后写的生效
+  const manualNew = [...uniq.values()].map(buildRec);
+  const newKeys = new Set(manualNew.map(key));
+  const removedList = oldManual.filter((r) => !newKeys.has(key(r)));
+  const fresh = manualNew.filter((r) => !oldManual.some((o) => key(o) === key(r)));
+  const changed = manualNew.filter((r) => {
+    const o = oldManual.find((x) => key(x) === key(r));
+    return o && (Number(o.hours || 0) !== Number(r.hours || 0) || JSON.stringify(o.modules) !== JSON.stringify(r.modules) || o.domain !== r.domain);
+  }).length;
+  const mergedSync = gitEntries.concat(manualNew).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  console.log(`解析记录：${recs.length} 条有效，${bad.length} 行无法识别${bad.length ? '（示例：' + bad.slice(0, 3).join(' / ') + '）' : ''}`);
+  console.log(`仓库归属：${REPO}${DOMAIN ? `；业务域：${DOMAIN}` : ''}`);
+  console.log(`对账模式：文件为准重建办公记录 —— 新增 ${fresh.length}，删除 ${removedList.length}，更新 ${changed}，保留 ${manualNew.length - fresh.length}`);
+  if (removedList.length) {
+    console.log('将删除：');
+    for (const r of removedList.slice(0, 10)) console.log(`  - ${r.date}  ${r.subject}`);
+  }
+
+  if (DRY) {
+    console.log(`\n--dry 预览（不落盘）。对账后台账：代码提交 ${gitEntries.length} + 办公记录 ${manualNew.length} = ${mergedSync.length} 条`);
+    process.exit(0);
+  }
+  writeJson(outFile, mergedSync);
+  console.log(`\n对账完成：out/commits.json 现共 ${mergedSync.length} 条记录（代码提交 ${gitEntries.length} + 办公记录 ${manualNew.length}）。`);
+  console.log('下一步：node scripts/plan_tasks.js --preview');
+  process.exit(0);
+}
+
+const seen = new Set(existing.map(key));
+const add = [];
+let dup = 0;
+for (const r of recs) {
+  const rec = buildRec(r);
   const k = key(rec);
   if (seen.has(k)) { dup++; continue; }
   seen.add(k);
@@ -177,8 +219,7 @@ for (const r of recs) {
 
 const merged = existing.concat(add).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-console.log(`解析记录：${recs.length} 条有效，${bad.length} 行无法识别${bad.length ? '（示例：' + bad.slice(0, 3).join(' / ') + '）' : ''}`);
-console.log(`仓库归属：${REPO}${DOMAIN ? `；业务域：${DOMAIN}` : ''}`);
+console.log(`解析记录：${recs.length} 条有效，${bad.length} 行无法识别${bad.length ? '（示例：' + bad.slice(0, 3).join(' / ') + '）' : ''}`);console.log(`仓库归属：${REPO}${DOMAIN ? `；业务域：${DOMAIN}` : ''}`);
 
 if (DRY) {
   console.log(`\n--dry 预览（不落盘），将新增 ${add.length} 条：`);
