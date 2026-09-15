@@ -33,7 +33,10 @@ class Zentao {
   }
 
   async goto(urlPath, sel) {
-    await this.page.goto(`${this.base}${urlPath}`, { waitUntil: 'domcontentloaded' });
+    // 坑：调用方偶尔会传入完整 URL（如 `${BASE}/task-edit-...`），直接拼 base 会产生
+    // `…/zentaohttp://…` 的畸形地址并在用户浏览器里留下无效标签页。统一做防御：完整 URL 原样使用。
+    const url = /^https?:\/\//i.test(urlPath) ? urlPath : `${this.base}${urlPath}`;
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' });
     const f = await this.waitFrame(sel, 40);
     if (!f) throw new Error(`页面未加载或选择器缺失：${urlPath} / ${sel}`);
     return f;
