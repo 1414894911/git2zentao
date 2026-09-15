@@ -16,7 +16,10 @@
  *
  * 用法：
  *   node scripts/import_manual.js                       # 默认读取 out/manual-work.md
- *   node scripts/import_manual.js --file out/manual-work.md --dry   # 只预览不落盘
+ *   node scripts/import_manual.js --add "07-22 (0.5h) 项目周会" --add "07-24 (3h) [运维] 线上告警处理"
+ *                                                       # 免编辑：直接把记录追加进文件并导入（可重复 --add）
+ *   node scripts/import_manual.js --init                # 生成记录模板（含格式说明与示例，不覆盖已有）
+ *   node scripts/import_manual.js --dry                 # 只预览不落盘（与 --add 同用可预览待补内容）
  *   node scripts/import_manual.js --file work.txt --repo my-web --domain 前端可视化
  *
  * 幂等：按「日期 + 事项 + 仓库」去重，重复导入自动跳过。
@@ -24,7 +27,9 @@
  */
 const path = require('path');
 const fs = require('fs');
-const { loadConfig, outDir, readJson, writeJson, arg, has, primaryDisplayName } = require('./lib/common');
+const {
+  loadConfig, outDir, readJson, writeJson, arg, argAll, has, primaryDisplayName
+} = require('./lib/common');
 
 const cfg = loadConfig();
 const FILE = typeof arg('--file') === 'string'
@@ -35,8 +40,11 @@ const DOMAIN = typeof arg('--domain') === 'string' ? String(arg('--domain')) : '
 const DRY = has('--dry');
 const INIT = has('--init');
 
-/** 模板：--init 一键生成，填好就能导入 */
-const TEMPLATE = [
+/** 收集所有 --add 值（可重复；用于「不想自己编辑文件，直接口述补充」的场景） */
+const ADDS = argAll('--add');
+
+/** 记录文件表头（--init 与 --add 创建文件时都写入，保证格式说明始终可见） */
+const HEADER = [
   '# 月度工作记录（本文件只留本机，已被 .gitignore 忽略）',
   '#',
   '# 用法：每行一条 —— 日期 + 事项描述。三种可选标注：',
@@ -47,7 +55,9 @@ const TEMPLATE = [
   '# 允许 - * · 等列表符号开头；支持（周X）星期标注。',
   '# 常见场景：需求评审 / 接口与文档对接 / 联调与测试支持 / 会议沟通 /',
   '#            运维值班 / 线上告警处理 / 培训分享 / 部署发布 / 方案与文档编写',
-  '',
+  ''
+];
+const EXAMPLES = [
   '2026-07-05 [地图与可视化] 需求评审：确认分级渲染交互方案',
   '2026-07-08 (1.5h) [站点数据] 与后端联调对齐数据口径',
   '2026-07-12 编写数据接入对接文档并同步后端',
@@ -55,25 +65,46 @@ const TEMPLATE = [
   '07-22 (0.5h) 项目周会与进度同步',
   '2026-07-24 (3h) [运维] 线上告警处理与故障排查',
   ''
-].join('\n');
+];
 
 if (INIT) {
   if (fs.existsSync(FILE)) {
     console.log(`记录文件已存在：${FILE}（--init 不会覆盖，直接往里追加即可）`);
   } else {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, TEMPLATE, 'utf-8');
+    fs.writeFileSync(FILE, HEADER.concat(EXAMPLES).join('\n'), 'utf-8');
     console.log(`已生成记录模板：${FILE}\n往里逐行补记录（日期 + 事项），然后去掉 --init 重新执行导入。`);
   }
   process.exit(0);
 }
 
-if (!fs.existsSync(FILE)) {
-  console.error(`未找到记录文件：${FILE}\n可先执行 --init 生成模板：\n  node scripts/import_manual.js --init\n或用办公软件（企业微信 / 钉钉 / 飞书）的 AI 功能生成月度工作总结后，\n保存为纯文本（每行一条：日期 + 事项）再重新执行。`);
+// --add：把口述/粘贴的记录追加进文件（不存在则连同格式说明一起创建），再走正常导入
+const fileExists = fs.existsSync(FILE);
+if (ADDS.length && !DRY) {
+  fs.mkdirSync(path.dirname(FILE), { recursive: true });
+  // 已存在的完全相同行不再重复追加（语义重复由后面的「日期+事项+仓库」去重兜底）
+  const existLines = new Set(
+    (fileExists ? fs.readFileSync(FILE, 'utf-8').replace(/^\uFEFF/, '') : '')
+      .split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+  );
+  const toAppend = ADDS.map((s) => s.trim()).filter((s) => s && !existLines.has(s));
+  if (toAppend.length) {
+    const head = fileExists ? '' : HEADER.join('\n') + '\n';
+    fs.appendFileSync(FILE, head + toAppend.join('\n') + '\n', 'utf-8');
+    console.log(`已追加 ${toAppend.length} 条记录到 ${FILE}${toAppend.length < ADDS.length ? `（跳过与文件中完全相同的 ${ADDS.length - toAppend.length} 条）` : ''}`);
+  } else {
+    console.log(`--add 的记录在文件中已存在，未重复追加：${FILE}`);
+  }
+}
+
+if (!fs.existsSync(FILE) && !(DRY && ADDS.length)) {
+  console.error(`未找到记录文件：${FILE}\n三种补录方式任选：\n  1) 直接告诉 AI 助手（推荐）：把「时间 + 事项」发给它，由它整理写入；\n  2) 命令行追加：node scripts/import_manual.js --add "07-22 (0.5h) 项目周会"\n  3) 生成模板后手填：node scripts/import_manual.js --init\n也可用办公软件（企业微信 / 钉钉 / 飞书）的 AI 月度总结导出为纯文本。`);
   process.exit(1);
 }
 
-const raw = fs.readFileSync(FILE, 'utf-8').replace(/^\uFEFF/, '');
+const raw = (fs.existsSync(FILE) ? fs.readFileSync(FILE, 'utf-8').replace(/^\uFEFF/, '') : '')
+  + (DRY && ADDS.length ? '\n' + ADDS.join('\n') : '');
+if (DRY && ADDS.length) console.log(`（--dry 预览：已把 --add 的 ${ADDS.length} 条一并纳入，但未写入文件）`);
 const year = String(new Date().getFullYear());
 const recs = [];
 const bad = [];

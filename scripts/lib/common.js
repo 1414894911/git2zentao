@@ -59,6 +59,17 @@ function arg(flag, def) {
   return next && !next.startsWith('--') ? next : true;
 }
 
+/** 可重复参数的全部取值，如 --add A --add B → ['A','B'] */
+function argAll(flag) {
+  const out = [];
+  for (let i = 0; i < process.argv.length; i++) {
+    if (process.argv[i] !== flag) continue;
+    const next = process.argv[i + 1];
+    if (next && !next.startsWith('--')) out.push(next);
+  }
+  return out;
+}
+
 function has(flag) {
   return process.argv.includes(flag);
 }
@@ -120,7 +131,7 @@ function resolveFromAnywhere(name) {
 
 module.exports = {
   SKILL_ROOT, CONFIG_PATH, EXAMPLE_PATH,
-  loadConfig, outDir, readJson, writeJson, log, arg, has, git,
+  loadConfig, outDir, readJson, writeJson, log, arg, argAll, has, git,
   authorMatcher, gitAuthorRegex, monthCn, primaryDisplayName,
   requireFromAnywhere, resolveFromAnywhere
 };

@@ -1,7 +1,7 @@
 ---
 name: git2zentao
 description: 全流程自动化技能包：代码提交 → 需求汇总 → 禅道任务创建 → 任务闭环。支持 Gitea/GitHub/Gitee 与禅道（Zin/经典版）多平台配置，自动探测本地环境（node/浏览器/playwright-core/CDP/git），按本人账号与时间范围读取提交、聚类汇总为需求功能，并支持导入企业微信/钉钉/飞书等办公平台 AI 生成的月度工作总结（需求评审、接口/文档对接、联调支持等非代码工作），在禅道项目中创建「月份父任务 → 模块子任务 → 功能点叶子任务」三层结构并按难度设定预估工时，最后按提交日期推进并完成任务形成闭环。难度等级（T1~T7）信号默认面向 WebGIS/可视化开发，可通过 config.estimate.tierRules 按自己的技术栈定制。任务描述同时面向领导（交付成果与价值）与同事/审计（来源提交与工时依据）生成，并支持存量任务复用、补写、重排与全项目月度工时总量校验。触发词：提交转禅道、代码提交生成任务、Git 提交汇总禅道、禅道任务闭环、工时汇报、补工时、工时上账、工作日志、周报月报汇总、办公记录导入、工作记录导入、月度工作总结、禅道建单、commit to zentao、git2zentao、工时任务自动创建。
-version: 1.2.1
+version: 1.3.0
 agent_created: true
 ---
 
@@ -49,8 +49,10 @@ node ~/.workbuddy/skills/git2zentao/scripts/zentao_locate.js
 # 5) 采集提交（本地仓库或远程平台）
 node ~/.workbuddy/skills/git2zentao/scripts/collect_commits.js --from 2026-07-01 --to 2026-08-01
 
-# 5b) （可选）导入办公记录：企业微信/钉钉/飞书的 AI 月度总结，覆盖评审/联调/文档等非代码工作，见 §3.4
+# 5b) （可选）导入办公记录：企业微信/钉钉/飞书的 AI 月度总结 + 手动补录，覆盖评审/联调/会议/运维等非代码工作，见 §3.4
+#     ★ 汇总前先问用户一句「有没有不在提交记录里的工作要补？给我时间 + 描述就行」，再：
 node ~/.workbuddy/skills/git2zentao/scripts/import_manual.js --dry
+node ~/.workbuddy/skills/git2zentao/scripts/import_manual.js --add "07-22 (0.5h) 项目周会"
 
 # 6) 汇总为任务树（先看预览，再落盘）；工时按难度阶梯自动分档
 node ~/.workbuddy/skills/git2zentao/scripts/plan_tasks.js --preview
@@ -162,8 +164,21 @@ git 只能覆盖「写了代码」的部分；需求评审与确认、接口/文
 node scripts/import_manual.js --dry                 # 先预览
 node scripts/import_manual.js --init                # 首次使用：生成模板文件（不覆盖已有）
 node scripts/import_manual.js                       # 默认读 out/manual-work.md，合并进 out/commits.json
+node scripts/import_manual.js --add "07-22 (0.5h) 项目周会" --add "07-24 (3h) [运维] 线上告警处理"
+                                                    # 免编辑：追加记录并导入（可重复 --add；与 --dry 同用只预览）
 node scripts/import_manual.js --file work.txt --repo my-web --domain 前端可视化
 ```
+
+**★ 流程内置的「主动补录」环节（不要跳过）**
+
+在汇总（`plan_tasks.js`）之前，执行者必须暂停并向用户问一句，把不在 git 与办公软件里的工作捞回来：
+
+> 「在生成任务之前，有没有不在提交记录里的工作要补？比如线下会议、运维值班、线上告警、帮同事排查问题、写文档——**只需要告诉我「时间 + 干了啥」，格式不用管**，我来整理。」
+
+- 用户回答后，**由执行者**把内容规范化为「日期 + 事项」（必要时补 `[模块]` 与 `(2h)`），用 `import_manual.js --add` 追加或直接写入 `out/manual-work.md`；
+- 落盘前先 `--dry` 给用户过一眼（尤其是人工工时标注），确认后再写入；
+- 用户说「没有」时也记一句「已确认无补充」，避免月底再回头翻；
+- 用户一时说不清时，可按「会议 / 运维 / 联调 / 文档 / 支持」逐类提示，但**不要替他编条目**。
 
 **人工指定工时（(2h) 标注）的口径**：
 - 仅当某条叶子任务的**全部**来源记录都标注了工时，才按人工值合计计（如周会 0.5h + 0.5h = 1h）；任务里混有代码提交时仍按难度推算（避免两套口径打架）；
@@ -590,6 +605,7 @@ node scripts/portfolio.js --check      # 校验各月合计是否超上限
 | `collect_commits.js` | `--repos a,b` | 只采集指定仓库（多人多仓库时缩小范围） |
 | | `--verbose` | 打印前 5 条采集结果的完整字段，便于核对作者与模块识别 |
 | `import_manual.js` | `--init` | 生成记录模板（含格式说明与示例，不覆盖已有文件） |
+| | `--add "<日期 事项>"` | 免编辑追加记录并导入（可重复；与 `--dry` 同用只预览不写文件）；重复内容会自动跳过 |
 | | `--file <路径>` / `--repo <名>` / `--domain <域>` | 自定义记录文件、仓库归属与业务域 |
 | `plan_tasks.js` | `--month 2026-07` | 只汇总指定月份（补某一个月时用） |
 | `check_estimate.js` | `--json` | 额外输出 `out/estimate-check.json`（便于脚本化比对） |
